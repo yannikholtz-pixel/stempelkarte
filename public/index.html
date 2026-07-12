@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nails by Julss – Deine Treuekarte</title>
+<meta name="theme-color" content="#c7431f">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<main>
+  <div class="brand">
+    <h1>Loyalty Card</h1>
+    <span class="studio">Nails by Julss</span>
+  </div>
+
+  <p class="gruss">Danke für deine Treue! Sammle Punkte bei jedem Besuch und freue dich auf exklusive Rabatte.</p>
+
+  <div class="abschnitt">
+    <h2>Deine Karte erstellen</h2>
+    <input type="text" id="name" placeholder="Dein Name" maxlength="60" autocomplete="name">
+    <button id="erstellen">Meine Stempelkarte erstellen</button>
+    <p class="fehler" id="fehler"></p>
+  </div>
+
+  <div class="abschnitt">
+    <h2>So funktioniert’s</h2>
+    <div class="regel"><div class="punkt">★</div><p>Sammle bei jedem Besuch einen Punkt – Julia scannt einfach deine Karte.</p></div>
+    <div class="regel"><div class="punkt">5</div><p>Beim 5. Besuch erhältst du 5 € Rabatt.</p></div>
+    <div class="regel"><div class="punkt">10</div><p>Beim 10. Besuch erhältst du 50 % Rabatt auf eine Behandlung.</p></div>
+  </div>
+
+  <p class="fussnote">Danke für dein Vertrauen! <span class="herz">♥</span><br>Instagram: Nailsby.Julss</p>
+</main>
+
+<script>
+(function () {
+  var vorhanden = localStorage.getItem('karteId');
+  if (vorhanden) { location.replace('/k/' + vorhanden); return; }
+
+  var knopf = document.getElementById('erstellen');
+  knopf.addEventListener('click', async function () {
+    var name = document.getElementById('name').value.trim();
+    var fehler = document.getElementById('fehler');
+    fehler.textContent = '';
+    if (!name) { fehler.textContent = 'Bitte gib deinen Namen ein.'; return; }
+    knopf.disabled = true;
+    try {
+      var res = await fetch('/api/karten', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: name })
+      });
+      var data = await res.json();
+      if (!res.ok) throw new Error(data.fehler || 'Fehler');
+      localStorage.setItem('karteId', data.id);
+      location.href = '/k/' + data.id;
+    } catch (e) {
+      fehler.textContent = e.message;
+      knopf.disabled = false;
+    }
+  });
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+})();
+</script>
+</body>
+</html>

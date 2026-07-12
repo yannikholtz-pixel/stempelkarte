@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deine Stempelkarte – Nails by Julss</title>
+<meta name="theme-color" content="#c7431f">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<main>
+  <div class="brand">
+    <h1>Loyalty Card</h1>
+    <span class="studio">Nails by Julss</span>
+  </div>
+
+  <p class="gruss" id="gruss">Karte wird geladen …</p>
+
+  <div id="banner-bereich"></div>
+
+  <div class="stempelgrid" id="grid"></div>
+  <p class="hinweis" id="fortschritt"></p>
+
+  <div class="karte-box">
+    <div class="qr" id="qr"></div>
+    <p>Zeig diesen Code bei deinem Besuch – Julia scannt ihn und du bekommst deinen Stempel.</p>
+  </div>
+
+  <a id="wallet" class="wallet-knopf versteckt" href="#">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 7a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7z" stroke="#fff" stroke-width="2"/><path d="M3 9h18" stroke="#fff" stroke-width="2"/><circle cx="17" cy="14" r="1.5" fill="#fff"/></svg>
+    Zu Google Wallet hinzufügen
+  </a>
+
+  <div class="ios-tipp versteckt" id="ios-tipp">
+    <strong>Tipp fürs iPhone:</strong> Tippe unten auf <strong>Teilen</strong> (Quadrat mit Pfeil) und dann auf <strong>„Zum Home-Bildschirm“</strong> – dann liegt deine Karte wie eine App auf dem Handy.
+  </div>
+
+  <div class="abschnitt">
+    <h2>So funktioniert’s</h2>
+    <div class="regel"><div class="punkt">★</div><p>Sammle bei jedem Besuch einen Punkt.</p></div>
+    <div class="regel"><div class="punkt">5</div><p>Beim 5. Besuch erhältst du 5 € Rabatt.</p></div>
+    <div class="regel"><div class="punkt">10</div><p>Beim 10. Besuch erhältst du 50 % Rabatt auf eine Behandlung.</p></div>
+  </div>
+
+  <p class="fussnote">Danke für dein Vertrauen! <span class="herz">♥</span><br>Instagram: Nailsby.Julss</p>
+</main>
+
+<script src="/vendor/qrcode.min.js"></script>
+<script>
+(function () {
+  var id = location.pathname.split('/').pop();
+  var alteDaten = null;
+
+  function kreis(nr, position) {
+    var div = document.createElement('div');
+    div.className = 'kreis';
+    if (nr === 5) { div.classList.add('belohnung'); div.innerHTML = '5€<span class="klein">RABATT</span>'; }
+    else if (nr === 10) { div.classList.add('belohnung'); div.innerHTML = '50%<span class="klein">RABATT</span>'; }
+    else div.textContent = nr;
+    if (nr <= position) {
+      div.classList.add('voll');
+      if (nr !== 5 && nr !== 10) div.innerHTML = '✓';
+    }
+    return div;
+  }
+
+  function rabattText(art) {
+    return art === '5eur' ? '5 € Rabatt verfügbar – zeig das Julia!' : '50 % Rabatt auf eine Behandlung verfügbar – zeig das Julia!';
+  }
+
+  function rendern(karte) {
+    document.getElementById('gruss').innerHTML =
+      'Hallo <strong>' + karte.name.replace(/</g, '&lt;') + '</strong>, du hast <strong>' +
+      karte.position + ' von 10</strong> Stempeln.';
+
+    var grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    for (var i = 1; i <= 10; i++) {
+      var k = kreis(i, karte.position);
+      if (alteDaten && i > alteDaten.position && i <= karte.position) k.classList.add('neu');
+      grid.appendChild(k);
+    }
+
+    var f = document.getElementById('fortschritt');
+    if (karte.position < 5) f.textContent = 'Noch ' + (5 - karte.position) + ' Besuch' + (5 - karte.position === 1 ? '' : 'e') + ' bis zu deinen 5 € Rabatt ♥';
+    else if (karte.position < 10) f.textContent = 'Noch ' + (10 - karte.position) + ' Besuch' + (10 - karte.position === 1 ? '' : 'e') + ' bis zu deinen 50 % Rabatt ♥';
+    else f.textContent = 'Karte voll – nach dem Einlösen geht es von vorne los ♥';
+
+    var banner = document.getElementById('banner-bereich');
+    banner.innerHTML = '';
+    (karte.offeneRabatte || []).forEach(function (r) {
+      var b = document.createElement('div');
+      b.className = 'banner';
+      b.textContent = '🎀 ' + rabattText(r.art);
+      banner.appendChild(b);
+    });
+
+    alteDaten = karte;
+  }
+
+  async function laden() {
+    try {
+      var res = await fetch('/api/karten/' + id);
+      if (res.status === 404) {
+        localStorage.removeItem('karteId');
+        location.replace('/');
+        return;
+      }
+      var karte = await res.json();
+      localStorage.setItem('karteId', id);
+      rendern(karte);
+    } catch (e) { /* offline – letzte Ansicht bleibt stehen */ }
+  }
+
+  new QRCode(document.getElementById('qr'), {
+    text: location.origin + '/k/' + id,
+    width: 168,
+    height: 168,
+    colorDark: '#2c2c2a',
+    colorLight: '#ffffff'
+  });
+
+  var istIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  var installiert = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (istIOS && !installiert) document.getElementById('ios-tipp').classList.remove('versteckt');
+
+  if (!istIOS) {
+    fetch('/api/wallet/' + id).then(function (r) { return r.json(); }).then(function (w) {
+      if (w.verfuegbar) {
+        var a = document.getElementById('wallet');
+        a.href = w.url;
+        a.classList.remove('versteckt');
+      }
+    }).catch(function () {});
+  }
+
+  laden();
+  setInterval(laden, 15000);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) laden();
+  });
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "Nails by Julss – Treuekarte",
+  "short_name": "Nails by Julss",
+  "description": "Deine digitale Stempelkarte bei Nails by Julss",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4ede3",
+  "theme_color": "#c7431f",
+  "lang": "de",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

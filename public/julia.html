@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Studio – Nails by Julss</title>
+<meta name="theme-color" content="#c7431f">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<main>
+  <div class="brand">
+    <h1>Studio</h1>
+    <span class="studio">Nails by Julss</span>
+  </div>
+
+  <div id="login">
+    <p class="gruss">Hallo Julia! Melde dich an, um Stempel zu vergeben.</p>
+    <input type="password" id="passwort" placeholder="Passwort" autocomplete="current-password">
+    <button id="anmelden">Anmelden</button>
+    <p class="fehler" id="login-fehler"></p>
+  </div>
+
+  <div id="app" class="versteckt">
+    <div class="statzeile">
+      <div class="stat"><div class="zahl" id="stat-stempel">–</div><div class="label">Stempel heute</div></div>
+      <div class="stat"><div class="zahl" id="stat-rabatte">–</div><div class="label">Rabatte heute</div></div>
+    </div>
+
+    <div class="tabs">
+      <button data-tab="scan" class="aktiv">Scannen</button>
+      <button data-tab="suche">Suchen</button>
+      <button data-tab="neu">Neue Kundin</button>
+    </div>
+
+    <div id="tab-scan">
+      <div id="video-box">
+        <video id="video" playsinline muted></video>
+        <div class="rahmen"><div></div></div>
+      </div>
+      <p class="hinweis">Halte die Kamera auf den QR-Code der Kundin.</p>
+    </div>
+
+    <div id="tab-suche" class="versteckt">
+      <input type="search" id="suche" placeholder="Name der Kundin …">
+      <ul class="liste" id="ergebnisse"></ul>
+    </div>
+
+    <div id="tab-neu" class="versteckt">
+      <div class="karte-box">
+        <div class="qr" id="neu-qr"></div>
+        <p>Neue Kundin? Diesen Code scannen lassen – sie erstellt in 10 Sekunden ihre eigene Karte.</p>
+      </div>
+    </div>
+
+    <div class="kundin-panel versteckt" id="panel">
+      <h3 id="p-name"></h3>
+      <p class="meta" id="p-meta"></p>
+      <div class="stempelgrid" id="p-grid"></div>
+      <div id="p-rabatte"></div>
+      <button id="p-stempeln">Stempel geben</button>
+      <button class="zweit" id="p-schliessen">Schließen</button>
+    </div>
+
+    <p class="fehler" id="app-fehler"></p>
+  </div>
+</main>
+
+<script src="/vendor/qrcode.min.js"></script>
+<script src="/vendor/jsQR.js"></script>
+<script>
+(function () {
+  var token = localStorage.getItem('adminToken');
+  var aktuelleKarte = null;
+  var scanAktiv = false;
+  var videoStream = null;
+
+  function api(pfad, optionen) {
+    optionen = optionen || {};
+    optionen.headers = Object.assign(
+      { 'content-type': 'application/json', 'x-admin-token': token || '' },
+      optionen.headers || {}
+    );
+    return fetch(pfad, optionen).then(function (res) {
+      if (res.status === 401) { abmelden(); throw new Error('Sitzung abgelaufen – bitte neu anmelden.'); }
+      return res.json().then(function (data) {
+        if (!res.ok) throw new Error(data.fehler || 'Fehler');
+        return data;
+      });
+    });
+  }
+
+  function zeige(bereich) {
+    document.getElementById('login').classList.toggle('versteckt', bereich !== 'login');
+    document.getElementById('app').classList.toggle('versteckt', bereich !== 'app');
+  }
+
+  function abmelden() {
+    localStorage.removeItem('adminToken');
+    token = null;
+    stoppeScanner();
+    zeige('login');
+  }
+
+  document.getElementById('anmelden').addEventListener('click', async function () {
+    var fehler = document.getElementById('login-fehler');
+    fehler.textContent = '';
+    try {
+      var res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ passwort: document.getElementById('passwort').value })
+      });
+      var data = await res.json();
+      if (!res.ok) throw new Error(data.fehler || 'Fehler');
+      token = data.token;
+      localStorage.setItem('adminToken', token);
+      starteApp();
+    } catch (e) { fehler.textContent = e.message; }
+  });
+
+  document.getElementById('passwort').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('anmelden').click();
+  });
+
+  document.querySelectorAll('.tabs button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.tabs button').forEach(function (x) { x.classList.remove('aktiv'); });
+      b.classList.add('aktiv');
+      ['scan', 'suche', 'neu'].forEach(function (t) {
+        document.getElementById('tab-' + t).classList.toggle('versteckt', t !== b.dataset.tab);
+      });
+      if (b.dataset.tab === 'scan') starteScanner(); else stoppeScanner();
+    });
+  });
+
+  async function statsLaden() {
+    try {
+      var s = await api('/api/heute');
+      document.getElementById('stat-stempel').textContent = s.stempel;
+      document.getElementById('stat-rabatte').textContent = s.eingeloest;
+    } catch (e) {}
+  }
+
+  function panelRendern(karte) {
+    aktuelleKarte = karte;
+    document.getElementById('p-name').textContent = karte.name;
+    var letzter = karte.letzterStempel
+      ? 'letzter Besuch ' + new Date(karte.letzterStempel).toLocaleDateString('de-DE')
+      : 'noch kein Besuch';
+    document.getElementById('p-meta').textContent = karte.position + ' von 10 Stempeln · ' + letzter;
+
+    var grid = document.getElementById('p-grid');
+    grid.innerHTML = '';
+    for (var i = 1; i <= 10; i++) {
+      var div = document.createElement('div');
+      div.className = 'kreis' + (i <= karte.position ? ' voll' : '');
+      if (i === 5) { div.classList.add('belohnung'); div.textContent = '5€'; }
+      else if (i === 10) { div.classList.add('belohnung'); div.textContent = '50%'; }
+      else div.textContent = i <= karte.position ? '✓' : i;
+      grid.appendChild(div);
+    }
+
+    var box = document.getElementById('p-rabatte');
+    box.innerHTML = '';
+    (karte.offeneRabatte || []).forEach(function (r) {
+      var b = document.createElement('button');
+      b.textContent = (r.art === '5eur' ? '5 € Rabatt' : '50 % Rabatt') + ' einlösen';
+      b.addEventListener('click', async function () {
+        b.disabled = true;
+        try {
+          var data = await api('/api/einloesen', { method: 'POST', body: JSON.stringify({ rabattId: r.id, karteId: karte.id }) });
+          panelRendern(data.karte);
+          statsLaden();
+        } catch (e) { meldung(e.message); b.disabled = false; }
+      });
+      box.appendChild(b);
+    });
+
+    document.getElementById('panel').classList.remove('versteckt');
+  }
+
+  function meldung(text) {
+    var f = document.getElementById('app-fehler');
+    f.textContent = text;
+    setTimeout(function () { f.textContent = ''; }, 4000);
+  }
+
+  document.getElementById('p-stempeln').addEventListener('click', async function () {
+    if (!aktuelleKarte) return;
+    var knopf = this;
+    knopf.disabled = true;
+    try {
+      var data = await api('/api/stempel', { method: 'POST', body: JSON.stringify({ karteId: aktuelleKarte.id }) });
+      if (data.nachfrage) {
+        if (confirm(data.nachfrage)) {
+          data = await api('/api/stempel', { method: 'POST', body: JSON.stringify({ karteId: aktuelleKarte.id, trotzdem: true }) });
+        } else { knopf.disabled = false; return; }
+      }
+      panelRendern(data.karte);
+      statsLaden();
+    } catch (e) { meldung(e.message); }
+    knopf.disabled = false;
+  });
+
+  document.getElementById('p-schliessen').addEventListener('click', function () {
+    document.getElementById('panel').classList.add('versteckt');
+    aktuelleKarte = null;
+  });
+
+  var sucheTimer = null;
+  document.getElementById('suche').addEventListener('input', function () {
+    clearTimeout(sucheTimer);
+    var wert = this.value;
+    sucheTimer = setTimeout(async function () {
+      try {
+        var data = await api('/api/kundinnen?suche=' + encodeURIComponent(wert));
+        var ul = document.getElementById('ergebnisse');
+        ul.innerHTML = '';
+        data.kundinnen.forEach(function (k) {
+          var li = document.createElement('li');
+          li.innerHTML = '<span>' + k.name.replace(/</g, '&lt;') + '</span><span class="anzahl">' +
+            (k.stempel === 0 ? 0 : ((k.stempel - 1) % 10) + 1) + '/10</span>';
+          li.addEventListener('click', async function () {
+            var karte = await api('/api/karten/' + k.id);
+            panelRendern(karte);
+          });
+          ul.appendChild(li);
+        });
+      } catch (e) {}
+    }, 250);
+  });
+
+  async function starteScanner() {
+    if (scanAktiv) return;
+    scanAktiv = true;
+    var video = document.getElementById('video');
+    try {
+      videoStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+      video.srcObject = videoStream;
+      await video.play();
+    } catch (e) {
+      scanAktiv = false;
+      meldung('Kamera nicht verfügbar – nutze den Tab „Suchen“.');
+      return;
+    }
+
+    var canvas = document.createElement('canvas');
+    var ctx = canvas.getContext('2d', { willReadFrequently: true });
+    var zuletzt = 0;
+
+    function tick() {
+      if (!scanAktiv) return;
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+        var bild = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var code = jsQR(bild.data, bild.width, bild.height, { inversionAttempts: 'dontInvert' });
+        if (code && Date.now() - zuletzt > 2500) {
+          var treffer = code.data.match(/\/k\/([0-9a-f-]{36})/i);
+          if (treffer) {
+            zuletzt = Date.now();
+            if (navigator.vibrate) navigator.vibrate(80);
+            api('/api/karten/' + treffer[1])
+              .then(panelRendern)
+              .catch(function (e) { meldung(e.message); });
+          }
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
+  function stoppeScanner() {
+    scanAktiv = false;
+    if (videoStream) {
+      videoStream.getTracks().forEach(function (t) { t.stop(); });
+      videoStream = null;
+    }
+  }
+
+  function starteApp() {
+    zeige('app');
+    statsLaden();
+    starteScanner();
+    var neuQr = document.getElementById('neu-qr');
+    if (!neuQr.hasChildNodes()) {
+      new QRCode(neuQr, {
+        text: location.origin + '/',
+        width: 168,
+        height: 168,
+        colorDark: '#2c2c2a',
+        colorLight: '#ffffff'
+      });
+    }
+  }
+
+  if (token) starteApp(); else zeige('login');
+})();
+</script>
+</body>
+</html>
