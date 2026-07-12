@@ -186,12 +186,31 @@ function zeitraum(req) {
 
 async function umsatzZeilen(von, bis) {
   return query(
-    `SELECT u.erstellt, u.behandlung, u.betrag_cent, u.karte_id, k.name
+    `SELECT u.id, u.erstellt, u.behandlung, u.betrag_cent, u.karte_id, k.name
      FROM umsaetze u LEFT JOIN karten k ON k.id = u.karte_id
      WHERE u.erstellt >= ? AND u.erstellt <= ? ORDER BY u.erstellt`,
     [von, bis]
   );
 }
+
+app.get('/api/umsaetze', requireAdmin, async (req, res) => {
+  const { von, bis } = zeitraum(req);
+  const rows = await umsatzZeilen(von, bis);
+  res.json({
+    umsaetze: rows.slice(-200).reverse().map(u => ({
+      id: u.id,
+      erstellt: u.erstellt,
+      behandlung: u.behandlung || '',
+      betragCent: Number(u.betrag_cent),
+      name: u.name || (u.karte_id ? 'Gelöschte Karte' : 'Ohne Karte')
+    }))
+  });
+});
+
+app.delete('/api/umsatz/:id', requireAdmin, async (req, res) => {
+  await query('DELETE FROM umsaetze WHERE id = ?', [String(req.params.id)]);
+  res.json({ ok: true });
+});
 
 app.get('/api/statistik', requireAdmin, async (req, res) => {
   const { von, bis } = zeitraum(req);

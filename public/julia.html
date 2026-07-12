@@ -80,6 +80,8 @@
       <div class="abschnitt"><h2>Top Behandlungen</h2><ul class="liste" id="z-behandlungen"></ul></div>
       <div class="abschnitt"><h2>Top Kundinnen</h2><ul class="liste" id="z-kundinnen"></ul></div>
 
+      <div class="abschnitt"><h2>Einzelne Einträge</h2><ul class="liste" id="z-eintraege"></ul></div>
+
       <div class="abschnitt">
         <h2>Für Excel exportieren</h2>
         <button class="zweit" id="z-export-einzeln" style="margin-bottom:8px;">Alle Einzelumsätze (CSV)</button>
@@ -319,6 +321,36 @@
     }
     fuelleListe(document.getElementById('z-behandlungen'), s.topBehandlungen);
     fuelleListe(document.getElementById('z-kundinnen'), s.topKundinnen);
+
+    try {
+      var e = await api('/api/umsaetze?von=' + encodeURIComponent(z.von) + '&bis=' + encodeURIComponent(z.bis));
+      var ul = document.getElementById('z-eintraege');
+      ul.innerHTML = '';
+      if (!e.umsaetze.length) ul.innerHTML = '<p class="hinweis">Noch keine Einträge in diesem Zeitraum.</p>';
+      e.umsaetze.forEach(function (u) {
+        var li = document.createElement('li');
+        li.style.cursor = 'default';
+        var datum = new Date(u.erstellt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+        var links = document.createElement('span');
+        links.style.cssText = 'flex:1;font-size:13px;min-width:0;';
+        links.innerHTML = '<b>' + euroText(u.betragCent) + '</b> · ' + datum + ' · ' +
+          u.name.replace(/</g, '&lt;') + (u.behandlung ? '<br><span style="color:var(--braun);font-size:12px;">' + u.behandlung.replace(/</g, '&lt;') + '</span>' : '');
+        var weg = document.createElement('button');
+        weg.textContent = '✕';
+        weg.setAttribute('aria-label', 'Eintrag löschen');
+        weg.style.cssText = 'width:34px;flex:0 0 34px;padding:6px;font-size:14px;background:transparent;border:1.5px solid var(--rose);color:var(--terra);border-radius:8px;margin-left:8px;';
+        weg.addEventListener('click', async function () {
+          if (!confirm('Eintrag über ' + euroText(u.betragCent) + ' (' + u.name + ') wirklich löschen?')) return;
+          try {
+            await api('/api/umsatz/' + u.id, { method: 'DELETE' });
+            zahlenLaden();
+          } catch (err) { meldung(err.message); }
+        });
+        li.appendChild(links);
+        li.appendChild(weg);
+        ul.appendChild(li);
+      });
+    } catch (e) {}
   }
 
   document.getElementById('z-zeitraum').addEventListener('change', zahlenLaden);
