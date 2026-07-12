@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Deine Stempelkarte – Nails by Julss</title>
-<meta name="theme-color" content="#c7431f">
+<meta name="theme-color" content="#b8434f">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icons/icon-192.png">
 <link rel="apple-touch-icon" href="/icons/icon-180.png">
@@ -12,6 +12,8 @@
 </head>
 <body>
 <main>
+  <img class="rose-deko oben" src="/assets/rose-ecke.png" alt="">
+  <img class="rose-deko unten" src="/assets/rose-ecke.png" alt="">
   <div class="brand">
     <h1>Loyalty Card</h1>
     <span class="studio">Nails by Julss</span>
@@ -62,7 +64,7 @@
     else div.textContent = nr;
     if (nr <= position) {
       div.classList.add('voll');
-      if (nr !== 5 && nr !== 10) div.innerHTML = '✓';
+      if (nr !== 5 && nr !== 10) div.innerHTML = '♥';
     }
     return div;
   }

@@ -57,7 +57,7 @@ function loyaltyClass(baseUrl) {
     programName: 'Treuekarte',
     programLogo: { sourceUri: { uri: `${baseUrl}/icons/icon-512.png` } },
     reviewStatus: 'UNDER_REVIEW',
-    hexBackgroundColor: '#c7431f'
+    hexBackgroundColor: '#b8434f'
   };
 }
 

@@ -1,4 +1,4 @@
-const CACHE = 'njs-v1';
+const CACHE = 'njs-v2';
 const SHELL = [
   '/',
   '/app.css',
@@ -6,7 +6,8 @@ const SHELL = [
   '/manifest.webmanifest',
   '/vendor/qrcode.min.js',
   '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  '/icons/icon-512.png',
+  '/assets/rose-ecke.png'
 ];
 
 self.addEventListener('install', event => {

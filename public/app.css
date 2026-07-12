@@ -1,12 +1,24 @@
 :root {
-  --creme: #f4ede3;
-  --hell: #fdfbf8;
-  --terra: #c7431f;
-  --terra-dunkel: #7a2a12;
-  --braun: #8a4a38;
-  --rose: #f0c2ae;
-  --nacht: #2c2c2a;
+  --creme: #fdf5f0;
+  --hell: #fffdfa;
+  --terra: #b8434f;
+  --terra-dunkel: #7a1f2b;
+  --braun: #96606a;
+  --rose: #f3cdd3;
+  --nacht: #2c2626;
 }
+
+main { position: relative; }
+
+.rose-deko {
+  position: absolute;
+  width: 110px;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.55;
+}
+.rose-deko.oben { top: -34px; right: -34px; }
+.rose-deko.unten { bottom: -30px; left: -34px; transform: scaleX(-1) scaleY(-1); }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
