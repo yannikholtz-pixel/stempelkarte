@@ -30,9 +30,10 @@
     </div>
 
     <div class="tabs">
-      <button data-tab="scan" class="aktiv">Scannen</button>
-      <button data-tab="suche">Suchen</button>
-      <button data-tab="neu">Neue Kundin</button>
+      <button data-tab="scan" class="aktiv">Scan</button>
+      <button data-tab="suche">Suche</button>
+      <button data-tab="neu">Neu</button>
+      <button data-tab="zahlen">Zahlen</button>
     </div>
 
     <div id="tab-scan">
@@ -55,11 +56,52 @@
       </div>
     </div>
 
+    <div id="tab-zahlen" class="versteckt">
+      <select id="z-zeitraum" style="width:100%; padding:12px; border:2px solid var(--rose); border-radius:12px; font-size:15px; font-family:inherit; background:var(--hell); color:var(--nacht); margin-bottom:12px;">
+        <option value="heute">Heute</option>
+        <option value="woche">Diese Woche</option>
+        <option value="monat" selected>Dieser Monat</option>
+        <option value="jahr">Dieses Jahr</option>
+        <option value="alles">Gesamter Zeitraum</option>
+      </select>
+
+      <div class="statzeile">
+        <div class="stat"><div class="zahl" id="z-umsatz">–</div><div class="label">Umsatz</div></div>
+        <div class="stat"><div class="zahl" id="z-besuche">–</div><div class="label">Besuche mit Umsatz</div></div>
+        <div class="stat"><div class="zahl" id="z-schnitt">–</div><div class="label">Ø pro Besuch</div></div>
+      </div>
+      <div class="statzeile">
+        <div class="stat"><div class="zahl" id="z-stempel">–</div><div class="label">Stempel</div></div>
+        <div class="stat"><div class="zahl" id="z-rabatte">–</div><div class="label">Rabatte eingelöst</div></div>
+        <div class="stat"><div class="zahl" id="z-neu">–</div><div class="label">Neue Kundinnen</div></div>
+      </div>
+
+      <div class="abschnitt"><h2>Verlauf</h2><div id="z-verlauf"></div></div>
+      <div class="abschnitt"><h2>Top Behandlungen</h2><ul class="liste" id="z-behandlungen"></ul></div>
+      <div class="abschnitt"><h2>Top Kundinnen</h2><ul class="liste" id="z-kundinnen"></ul></div>
+
+      <div class="abschnitt">
+        <h2>Für Excel exportieren</h2>
+        <button class="zweit" id="z-export-einzeln" style="margin-bottom:8px;">Alle Einzelumsätze (CSV)</button>
+        <button class="zweit" id="z-export-monate">Monatsübersicht (CSV)</button>
+        <p class="hinweis" style="margin-top:8px;">Die Dateien öffnen sich direkt in Excel – mit Datum, Kundin, Behandlung und Betrag. Praktisch als Grundlage für die Steuer.</p>
+      </div>
+
+      <div class="abschnitt">
+        <h2>Umsatz ohne Karte eintragen</h2>
+        <input type="text" id="z-behandlung" placeholder="Behandlung, z. B. Neumodellage" maxlength="80">
+        <input type="number" id="z-betrag" placeholder="Betrag in €" step="0.01" min="0" inputmode="decimal">
+        <button id="z-eintragen">Umsatz eintragen</button>
+      </div>
+    </div>
+
     <div class="kundin-panel versteckt" id="panel">
       <h3 id="p-name"></h3>
       <p class="meta" id="p-meta"></p>
       <div class="stempelgrid" id="p-grid"></div>
       <div id="p-rabatte"></div>
+      <input type="text" id="p-behandlung" placeholder="Behandlung (optional)" maxlength="80" style="margin-top:12px;">
+      <input type="number" id="p-betrag" placeholder="Preis in € (optional)" step="0.01" min="0" inputmode="decimal">
       <button id="p-stempeln">Stempel geben</button>
       <button class="zweit" id="p-schliessen">Schließen</button>
     </div>
@@ -129,10 +171,11 @@
     b.addEventListener('click', function () {
       document.querySelectorAll('.tabs button').forEach(function (x) { x.classList.remove('aktiv'); });
       b.classList.add('aktiv');
-      ['scan', 'suche', 'neu'].forEach(function (t) {
+      ['scan', 'suche', 'neu', 'zahlen'].forEach(function (t) {
         document.getElementById('tab-' + t).classList.toggle('versteckt', t !== b.dataset.tab);
       });
       if (b.dataset.tab === 'scan') starteScanner(); else stoppeScanner();
+      if (b.dataset.tab === 'zahlen') zahlenLaden();
     });
   });
 
@@ -192,15 +235,127 @@
     if (!aktuelleKarte) return;
     var knopf = this;
     knopf.disabled = true;
+    var eintrag = {
+      karteId: aktuelleKarte.id,
+      behandlung: document.getElementById('p-behandlung').value.trim(),
+      betrag: document.getElementById('p-betrag').value
+    };
     try {
-      var data = await api('/api/stempel', { method: 'POST', body: JSON.stringify({ karteId: aktuelleKarte.id }) });
+      var data = await api('/api/stempel', { method: 'POST', body: JSON.stringify(eintrag) });
       if (data.nachfrage) {
         if (confirm(data.nachfrage)) {
-          data = await api('/api/stempel', { method: 'POST', body: JSON.stringify({ karteId: aktuelleKarte.id, trotzdem: true }) });
+          eintrag.trotzdem = true;
+          data = await api('/api/stempel', { method: 'POST', body: JSON.stringify(eintrag) });
         } else { knopf.disabled = false; return; }
       }
+      document.getElementById('p-behandlung').value = '';
+      document.getElementById('p-betrag').value = '';
       panelRendern(data.karte);
       statsLaden();
+    } catch (e) { meldung(e.message); }
+    knopf.disabled = false;
+  });
+
+  function euroText(cent) {
+    return (cent / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  }
+
+  function zeitraumVonBis() {
+    var wahl = document.getElementById('z-zeitraum').value;
+    var jetzt = new Date();
+    var von = new Date(jetzt);
+    if (wahl === 'heute') von.setHours(0, 0, 0, 0);
+    else if (wahl === 'woche') {
+      var wt = (jetzt.getDay() + 6) % 7;
+      von.setDate(jetzt.getDate() - wt);
+      von.setHours(0, 0, 0, 0);
+    } else if (wahl === 'monat') { von = new Date(jetzt.getFullYear(), jetzt.getMonth(), 1); }
+    else if (wahl === 'jahr') { von = new Date(jetzt.getFullYear(), 0, 1); }
+    else von = new Date(0);
+    var gruppe = (wahl === 'jahr' || wahl === 'alles') ? 'monat' : 'tag';
+    return { von: von.toISOString(), bis: jetzt.toISOString(), gruppe: gruppe };
+  }
+
+  async function zahlenLaden() {
+    var z = zeitraumVonBis();
+    try {
+      var s = await api('/api/statistik?von=' + encodeURIComponent(z.von) + '&bis=' + encodeURIComponent(z.bis) + '&gruppe=' + z.gruppe);
+    } catch (e) { meldung(e.message); return; }
+
+    document.getElementById('z-umsatz').textContent = euroText(s.umsatzCent);
+    document.getElementById('z-besuche').textContent = s.besuche;
+    document.getElementById('z-schnitt').textContent = euroText(s.schnittCent);
+    document.getElementById('z-stempel').textContent = s.stempel;
+    document.getElementById('z-rabatte').textContent = s.rabatte;
+    document.getElementById('z-neu').textContent = s.neueKundinnen;
+
+    var box = document.getElementById('z-verlauf');
+    box.innerHTML = '';
+    var max = 1;
+    s.verlauf.forEach(function (v) { if (v.cent > max) max = v.cent; });
+    if (!s.verlauf.length) box.innerHTML = '<p class="hinweis">Noch keine Umsätze in diesem Zeitraum.</p>';
+    s.verlauf.forEach(function (v) {
+      var teile = v.schluessel.split('-');
+      var label = teile.length === 3 ? teile[2] + '.' + teile[1] + '.' : teile[1] + '/' + teile[0].slice(2);
+      var zeile = document.createElement('div');
+      zeile.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
+      zeile.innerHTML =
+        '<span style="flex:0 0 52px;font-size:12px;color:var(--braun);">' + label + '</span>' +
+        '<div style="flex:1;background:var(--hell);border-radius:6px;overflow:hidden;height:20px;">' +
+        '<div style="width:' + Math.max(3, Math.round(v.cent / max * 100)) + '%;height:100%;background:var(--terra);"></div></div>' +
+        '<span style="flex:0 0 76px;font-size:12px;text-align:right;color:var(--nacht);">' + euroText(v.cent) + '</span>';
+      box.appendChild(zeile);
+    });
+
+    function fuelleListe(el, eintraege) {
+      el.innerHTML = '';
+      if (!eintraege.length) el.innerHTML = '<p class="hinweis">Noch keine Daten.</p>';
+      eintraege.forEach(function (t) {
+        var li = document.createElement('li');
+        li.style.cursor = 'default';
+        li.innerHTML = '<span>' + t.name.replace(/</g, '&lt;') + ' <span style="color:var(--braun);font-size:12px;">(' + t.anzahl + '×)</span></span><span class="anzahl">' + euroText(t.cent) + '</span>';
+        el.appendChild(li);
+      });
+    }
+    fuelleListe(document.getElementById('z-behandlungen'), s.topBehandlungen);
+    fuelleListe(document.getElementById('z-kundinnen'), s.topKundinnen);
+  }
+
+  document.getElementById('z-zeitraum').addEventListener('change', zahlenLaden);
+
+  async function exportieren(typ) {
+    var z = zeitraumVonBis();
+    var url = '/api/export.csv?typ=' + typ + '&von=' + encodeURIComponent(z.von) + '&bis=' + encodeURIComponent(z.bis);
+    try {
+      var res = await fetch(url, { headers: { 'x-admin-token': token || '' } });
+      if (!res.ok) throw new Error('Export fehlgeschlagen');
+      var blob = await res.blob();
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (res.headers.get('content-disposition') || '').match(/filename="(.+)"/)?.[1] || 'umsaetze.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+    } catch (e) { meldung(e.message); }
+  }
+  document.getElementById('z-export-einzeln').addEventListener('click', function () { exportieren('einzeln'); });
+  document.getElementById('z-export-monate').addEventListener('click', function () { exportieren('monate'); });
+
+  document.getElementById('z-eintragen').addEventListener('click', async function () {
+    var knopf = this;
+    knopf.disabled = true;
+    try {
+      await api('/api/umsatz', {
+        method: 'POST',
+        body: JSON.stringify({
+          behandlung: document.getElementById('z-behandlung').value.trim(),
+          betrag: document.getElementById('z-betrag').value
+        })
+      });
+      document.getElementById('z-behandlung').value = '';
+      document.getElementById('z-betrag').value = '';
+      zahlenLaden();
     } catch (e) { meldung(e.message); }
     knopf.disabled = false;
   });

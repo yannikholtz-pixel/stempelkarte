@@ -9,6 +9,14 @@ Digitale Treuekarte als PWA: Kundinnen sammeln Stempel per QR-Code, Julia vergib
 3. **Rabatt:** Bei 5 bzw. 10 Stempeln erscheint automatisch ein Rabatt auf der Karte der Kundin. Julia löst ihn im Studio-Bereich per Knopfdruck ein.
 4. **Aufs Handy:** Android → Button „Zu Google Wallet hinzufügen" (wenn eingerichtet, s. u.) oder „App installieren". iPhone → Teilen → „Zum Home-Bildschirm".
 
+## Statistik und Steuer
+
+Im Studio-Bereich gibt es den Tab **„Zahlen"**:
+
+- Beim Stempeln kann Julia optional **Behandlung + Preis** eintragen — daraus entstehen die Auswertungen. Umsätze ohne Stempelkarte (Laufkundschaft) lassen sich manuell nachtragen.
+- Auswertung nach Zeitraum (heute/Woche/Monat/Jahr/gesamt): Umsatz, Besuche, Ø pro Besuch, Stempel, eingelöste Rabatte, neue Kundinnen, Umsatzverlauf, Top-Behandlungen und Top-Kundinnen.
+- **Excel-Export:** „Alle Einzelumsätze" (Datum, Kundin, Behandlung, Betrag) und „Monatsübersicht" als CSV mit UTF-8-BOM, Semikolon und Dezimalkomma — öffnet sich in deutschem Excel direkt korrekt. Der Jahres-Export der Einzelumsätze taugt als Einnahmen-Grundlage für die Steuererklärung (ersetzt natürlich keine Steuerberatung).
+
 ## Lokal starten
 
 ```

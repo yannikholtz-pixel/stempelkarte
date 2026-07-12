@@ -27,6 +27,14 @@ const SCHEMA = [
     token TEXT PRIMARY KEY,
     erstellt TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS umsaetze (
+    id TEXT PRIMARY KEY,
+    karte_id TEXT,
+    behandlung TEXT,
+    betrag_cent INTEGER NOT NULL,
+    erstellt TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_umsaetze_erstellt ON umsaetze (erstellt)`,
   `CREATE INDEX IF NOT EXISTS idx_stempel_karte ON stempel (karte_id, erstellt)`,
   `CREATE INDEX IF NOT EXISTS idx_rabatte_karte ON rabatte (karte_id)`
 ];
